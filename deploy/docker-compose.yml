@@ -19,9 +19,13 @@ services:
     environment:
       WIREMOCK_URL: http://wiremock:8080
       REDIS_ADDR: redis:6380
+      KAFKA_BROKER: redpanda:9093
+      MYSQL_DSN: root:mirage@tcp(mysql:3307)/mirage
     depends_on:
       - wiremock
       - redis
+      - redpanda
+      - mysql
 
   wiremock:
     image: wiremock/wiremock:3.5.4
@@ -34,6 +38,27 @@ services:
     command: redis-server --port 6380
     ports:
       - "6380:6380"
+
+  redpanda:
+    image: redpandadata/redpanda:latest
+    command:
+      - redpanda
+      - start
+      - --kafka-addr internal://0.0.0.0:9093,external://0.0.0.0:9092
+      - --advertise-kafka-addr internal://redpanda:9093,external://localhost:9092
+      - --mode dev-container
+    ports:
+      - "9092:9092"
+      - "9093:9093"
+
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: mirage
+      MYSQL_DATABASE: mirage
+    command: --port=3307
+    ports:
+      - "3307:3307"
 
   # Uncomment to attach your service to Mirage's network namespace.
   # your-service:

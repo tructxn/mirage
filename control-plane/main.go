@@ -27,6 +27,12 @@ func main() {
 	redisAddr := getenv("REDIS_ADDR", "redis:6380")
 	registry.Register("redis", adapters.NewRedisAdapter(redisAddr))
 
+	kafkaBroker := getenv("KAFKA_BROKER", "redpanda:9093")
+	registry.Register("kafka", adapters.NewKafkaAdapter(kafkaBroker))
+
+	mysqlDSN := getenv("MYSQL_DSN", "root:mirage@tcp(mysql:3307)/mirage")
+	registry.Register("mysql", adapters.NewMySQLAdapter(mysqlDSN))
+
 	srv := api.NewServer(store, registry)
 
 	addr := getenv("LISTEN_ADDR", ":9000")
