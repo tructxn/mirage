@@ -71,17 +71,18 @@ func (s *Store) Rules(sessionID string) []Rule {
 	return out
 }
 
-func (s *Store) RuleByBackendID(sessionID, backendID string) *Rule {
+func (s *Store) RuleByBackendID(sessionID, backendID string) (Rule, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	sess, ok := s.sessions[sessionID]
 	if !ok {
-		return nil
+		return Rule{}, false
 	}
 	for i := range sess.Rules {
 		if sess.Rules[i].BackendID == backendID {
-			return &sess.Rules[i]
+			r := sess.Rules[i] // copy
+			return r, true
 		}
 	}
-	return nil
+	return Rule{}, false
 }

@@ -58,8 +58,8 @@ func TestRuleByBackendID(t *testing.T) {
 	store := session.NewStore()
 	sess := store.Create()
 	store.AddRule(sess.ID, session.Rule{ID: "r1", BackendID: "wm-123", Protocol: "http"})
-	rule := store.RuleByBackendID(sess.ID, "wm-123")
-	if rule == nil || rule.ID != "r1" {
+	rule, ok := store.RuleByBackendID(sess.ID, "wm-123")
+	if !ok || rule.ID != "r1" {
 		t.Fatal("expected to find rule by backend ID")
 	}
 }
