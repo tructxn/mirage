@@ -14,6 +14,6 @@ iptables -t nat -A OUTPUT -p tcp --dport 6379 -j REDIRECT --to-port 15003
 iptables -t nat -A OUTPUT -p tcp --dport 9092 -j REDIRECT --to-port 15004
 iptables -t nat -A OUTPUT -p tcp --dport 3306 -j REDIRECT --to-port 15005
 # Phase 3:
-# iptables -t nat -A OUTPUT -p tcp --dport 5672 -j REDIRECT --to-port 15006
+iptables -t nat -A OUTPUT -p tcp --dport 5672 -j REDIRECT --to-port 15006
 
 echo "iptables rules applied"

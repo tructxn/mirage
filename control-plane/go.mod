@@ -12,6 +12,7 @@ require (
 	github.com/go-sql-driver/mysql v1.10.0 // indirect
 	github.com/klauspost/compress v1.18.5 // indirect
 	github.com/pierrec/lz4/v4 v4.1.26 // indirect
+	github.com/rabbitmq/amqp091-go v1.11.0 // indirect
 	github.com/redis/go-redis/v9 v9.19.0 // indirect
 	github.com/twmb/franz-go v1.21.1 // indirect
 	github.com/twmb/franz-go/pkg/kadm v1.18.0 // indirect

@@ -33,6 +33,9 @@ func main() {
 	mysqlDSN := getenv("MYSQL_DSN", "root:mirage@tcp(mysql:3307)/mirage")
 	registry.Register("mysql", adapters.NewMySQLAdapter(mysqlDSN))
 
+	rabbitURL := getenv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5673/")
+	registry.Register("amqp", adapters.NewRabbitMQAdapter(rabbitURL))
+
 	srv := api.NewServer(store, registry)
 
 	addr := getenv("LISTEN_ADDR", ":9000")

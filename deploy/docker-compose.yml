@@ -21,11 +21,13 @@ services:
       REDIS_ADDR: redis:6380
       KAFKA_BROKER: redpanda:9093
       MYSQL_DSN: root:mirage@tcp(mysql:3307)/mirage
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5673/
     depends_on:
       - wiremock
       - redis
       - redpanda
       - mysql
+      - rabbitmq
 
   wiremock:
     image: wiremock/wiremock:3.5.4
@@ -59,6 +61,14 @@ services:
     command: --port=3307
     ports:
       - "3307:3307"
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    ports:
+      - "5673:5673"
+      - "15673:15672"
+    environment:
+      RABBITMQ_NODE_PORT: 5673
 
   # Uncomment to attach your service to Mirage's network namespace.
   # your-service:
