@@ -35,6 +35,7 @@ func main() {
 
 	rabbitURL := getenv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5673/")
 	registry.Register("amqp", adapters.NewRabbitMQAdapter(rabbitURL))
+	registry.Register("amqp-rpc", adapters.NewRabbitMQRPCAdapter(rabbitURL))
 
 	srv := api.NewServer(store, registry)
 
