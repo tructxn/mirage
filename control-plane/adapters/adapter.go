@@ -1,6 +1,10 @@
 package adapters
 
-import "github.com/tructxn/mirage/control-plane/session"
+import (
+	"maps"
+
+	"github.com/tructxn/mirage/control-plane/session"
+)
 
 type BackendAdapter interface {
 	PushRule(sessionID string, rule *session.Rule) error
@@ -24,8 +28,6 @@ func (r *Registry) Get(protocol string) (BackendAdapter, bool) {
 }
 func (r *Registry) All() map[string]BackendAdapter {
 	out := make(map[string]BackendAdapter, len(r.adapters))
-	for k, v := range r.adapters {
-		out[k] = v
-	}
+	maps.Copy(out, r.adapters)
 	return out
 }
