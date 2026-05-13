@@ -2,109 +2,102 @@
 
 > Like Andrea Pirlo — sits deep, sees everything, distributes to wherever it needs to go.
 
-Regista is a **network-level mock proxy for E2E testing**. It intercepts all outbound TCP traffic from your service — HTTP, Redis, Kafka, RabbitMQ, MySQL, Oracle — and returns configured fake responses, with zero changes to your production code.
+Regista is a **network-level mock proxy for E2E testing**. Run your service in Docker against mocked external dependencies — no real Redis cluster, no real Kafka broker, no real payment gateway. Your service runs its real code. Everything outside it is intercepted and faked.
 
 ---
 
 ## The Problem
 
-E2E tests are supposed to test the whole thing. But most teams end up mocking at the code level anyway:
+Modern services talk to a lot of things: Redis, Kafka, HTTP APIs, MySQL, RabbitMQ. Running a full E2E test means either spinning up all of those dependencies (expensive, slow, flaky) or mocking them at the code level (brittle, language-specific, drifts from real behavior).
 
-- You mock the Redis client in your language. Then a Redis-specific behavior you didn't mock breaks in prod.
-- You mock the HTTP client per test. The mocks slowly drift from what the real service actually returns.
-- You spin up a dozen test containers. Each one is someone's problem to maintain.
-- You have no single place to see "what external calls does this service make?"
+Both approaches share the same root problem: **you're managing the wrong thing.**
 
-The root issue: **mocking at the code level is the wrong layer.** It couples your tests to implementation details, not to network behavior.
+- Spinning up real clusters: you're maintaining test infrastructure that mirrors production. It breaks independently of your code.
+- Code-level mocks: you're mocking the client library, not the network. Your mock of `redis.get()` has nothing to do with what a real Redis server actually returns.
+
+What you actually want: **run your service for real, fake everything outside it, and have a single place to control what those fakes return.**
 
 ---
 
 ## The Idea
 
-Intercept traffic at the network level instead. Redirect all outbound TCP to a local proxy. The proxy understands each protocol and returns whatever you've configured.
+Redirect all outbound TCP from your service to a local proxy. The proxy understands each protocol and responds with whatever you've configured. Your service makes calls exactly as it does in production — same DNS, same ports, same wire protocol. It never knows it's talking to a fake.
 
 ```
-Your Service
-    │
-    │  iptables REDIRECT (per port, transparent)
-    ▼
-Envoy Sidecar
-    │
-    ├─ :80 / :443  ──►  HTTP filter     ──►  Control Plane
-    ├─ :6379       ──►  redis_proxy     ──►  Control Plane
-    ├─ :5672       ──►  tcp_proxy       ──►  Control Plane
-    └─ :9092       ──►  kafka_broker    ──►  Control Plane
+docker-compose up
+  ├─ your-service          ← real code, real logic, no changes
+  └─ regista
+       ├─ :80 / :443  ──►  HTTP/gRPC  ──►  mocked
+       ├─ :6379       ──►  Redis       ──►  mocked
+       ├─ :9092       ──►  Kafka       ──►  mocked
+       ├─ :3306       ──►  MySQL       ──►  mocked
+       └─ :5672       ──►  RabbitMQ   ──►  mocked
 ```
 
-Your service makes calls exactly as it does in production — same DNS names, same ports, same protocol. Regista intercepts them and responds with what you said to respond with.
+No Redis container. No Kafka broker. No external sandbox accounts. Just your service and Regista.
 
 ---
 
-## What You Get
+## How It Works
 
-- **Zero code changes** — interception is at the OS network layer via iptables, invisible to your service
-- **One API for all protocols** — configure mocks for HTTP, Redis, Kafka, and more from a single REST endpoint
-- **Protocol-aware** — Envoy speaks each protocol natively; your service gets a real Redis response, a real HTTP response, not a raw TCP blob
-- **Inspectable traffic** — see every outbound call your service made during a test run
-- **Resets between tests** — POST `/mocks/reset` and you're clean
+**iptables** intercepts all outbound TCP before it leaves the container — transparent, no env vars, no SDK config, no changes to your service.
+
+**Envoy** receives the traffic and parses it natively — it speaks Redis RESP, Kafka wire protocol, HTTP/2, MySQL protocol. Your service gets a real protocol response back, not a raw TCP blob.
+
+**Control Plane** is the single API you use from your tests to configure what Regista returns.
 
 ---
 
-## Mock Rule Example
+## Using It From Tests
 
 ```bash
-# Mock a Redis GET
-POST /mocks
+# Before your test: set up mocks
+POST /sessions/test-123/mocks
 {
   "protocol": "redis",
   "match": { "command": "GET", "key": "user:*" },
   "response": "{\"id\": 1, \"name\": \"ada\"}"
 }
 
-# Mock an HTTP call
-POST /mocks
+POST /sessions/test-123/mocks
 {
   "protocol": "http",
   "match": { "method": "POST", "path": "/v1/charge" },
   "response": { "status": 200, "body": { "id": "ch_fake123", "status": "succeeded" } }
 }
 
-# Inspect what was called
-GET /traffic
+# Run your test ...
+
+# After: inspect what your service actually called
+GET /sessions/test-123/traffic
+# → every intercepted call, which rule matched, what was returned
+
+# Reset for next test
+DELETE /sessions/test-123
 ```
 
----
+Mocks are **session-scoped** — parallel tests don't stomp on each other. Each test gets its own session ID.
 
-## Architecture
-
-**Envoy** is the proxy — it handles the protocol parsing, matching, and response. It knows Redis RESP, Kafka wire format, HTTP — you don't have to.
-
-**iptables** redirects outbound traffic to Envoy before it leaves the container. Same pattern as Istio/Linkerd service meshes. No proxy env vars, no SDK configuration — it just works.
-
-**Control Plane** is the single API that accepts mock rules, pushes them to the right backend, and exposes traffic inspection.
-
-See [`docs/architecture.md`](docs/architecture.md) for the full breakdown.
+The `/traffic` response shows exactly what was intercepted: the raw request, which rule it matched against, and why. No more guessing why a mock didn't fire.
 
 ---
 
 ## Supported Protocols
 
-| Protocol   | Envoy Filter               | Status   |
-|------------|----------------------------|----------|
-| HTTP/gRPC  | `http_connection_manager`  | Planned  |
-| Redis      | `redis_proxy`              | Planned  |
-| Kafka      | `kafka_broker`             | Planned  |
-| MySQL      | `mysql_proxy`              | Planned  |
-| RabbitMQ   | `tcp_proxy` (raw)          | Planned  |
-| Oracle     | `tcp_proxy` (raw)          | Planned  |
+| Protocol   | Envoy Filter               | Backend              | Status  |
+|------------|----------------------------|----------------------|---------|
+| HTTP/gRPC  | `http_connection_manager`  | WireMock / built-in  | Planned |
+| Redis      | `redis_proxy`              | miniredis            | Planned |
+| Kafka      | `kafka_broker`             | Microcks AsyncAPI    | Planned |
+| MySQL      | `mysql_proxy`              | test container       | Planned |
+| RabbitMQ   | `tcp_proxy` (raw)          | rabbitmq-mock        | Planned |
+| Oracle     | `tcp_proxy` (raw)          | TestContainers       | Planned |
 
 ---
 
-## Inspiration
+## Architecture
 
-**Regista** is the Italian football term for a deep-lying playmaker — the Andrea Pirlo role. Sits in front of the defence, reads the whole field, distributes to wherever it needs to go.
-
-This proxy does the same: sits between your service and all external dependencies, directing each call to the right mock.
+See [`docs/architecture.md`](docs/architecture.md) for the full breakdown.
 
 ---
 
@@ -122,7 +115,15 @@ This proxy does the same: sits between your service and all external dependencie
 - [Microcks](https://microcks.io/) — strong for Kafka/AsyncAPI and OpenAPI mocking. Complex to operate, not designed for sidecar interception.
 - [WireMock](https://wiremock.org/) — de facto standard for HTTP mocking. No network-level interception; requires SDK or proxy env var configuration.
 
-**Where Regista fits**: network-level interception across all protocols, single control plane, open source, designed to run as a sidecar with no service changes.
+**Where Regista fits**: network-level interception across all protocols, single control plane, session-scoped isolation, open source, designed to run as a Docker sidecar with no service changes.
+
+---
+
+## Inspiration
+
+**Regista** is the Italian football term for a deep-lying playmaker — the Andrea Pirlo role. Sits in front of the defence, reads the whole field, distributes to wherever it needs to go.
+
+This proxy does the same: sits between your service and all external dependencies, directing each call to the right mock.
 
 ---
 
