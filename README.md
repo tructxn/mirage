@@ -2,78 +2,119 @@
 
 > Like Andrea Pirlo — sits deep, sees everything, distributes to wherever it needs to go.
 
-**Regista** is a universal mock proxy for E2E testing. Instead of mocking at the code level, it intercepts all outbound TCP traffic (HTTP, Redis, RabbitMQ, Kafka, Oracle, and more) at the network level via Envoy and returns configured fake responses from a single control plane.
+Regista is a **network-level mock proxy for E2E testing**. It intercepts all outbound TCP traffic from your service — HTTP, Redis, Kafka, RabbitMQ, MySQL, Oracle — and returns configured fake responses, with zero changes to your production code.
+
+---
 
 ## The Problem
 
-Traditional E2E tests mock at the code level:
-- Language-specific mock libraries per dependency
-- Mocks drift from real behavior over time
-- No single source of truth for "what external calls does this service make"
+E2E tests are supposed to test the whole thing. But most teams end up mocking at the code level anyway:
+
+- You mock the Redis client in your language. Then a Redis-specific behavior you didn't mock breaks in prod.
+- You mock the HTTP client per test. The mocks slowly drift from what the real service actually returns.
+- You spin up a dozen test containers. Each one is someone's problem to maintain.
+- You have no single place to see "what external calls does this service make?"
+
+The root issue: **mocking at the code level is the wrong layer.** It couples your tests to implementation details, not to network behavior.
+
+---
 
 ## The Idea
 
-Redirect **all** outbound TCP to a localhost proxy. The proxy understands each protocol and returns configured fake responses. Zero changes to production code.
+Intercept traffic at the network level instead. Redirect all outbound TCP to a local proxy. The proxy understands each protocol and returns whatever you've configured.
 
 ```
-[Your Service]
-      │
-      │  iptables REDIRECT (per port)
-      ▼
-[Envoy Sidecar]
-      │
-      ├─ port 80/443  ──► HTTP filter   ──► Mock Control Plane
-      ├─ port 6379    ──► redis_proxy   ──► Mock Control Plane
-      ├─ port 5672    ──► tcp_proxy     ──► Mock Control Plane
-      └─ port 9092    ──► kafka_broker  ──► Mock Control Plane
+Your Service
+    │
+    │  iptables REDIRECT (per port, transparent)
+    ▼
+Envoy Sidecar
+    │
+    ├─ :80 / :443  ──►  HTTP filter     ──►  Control Plane
+    ├─ :6379       ──►  redis_proxy     ──►  Control Plane
+    ├─ :5672       ──►  tcp_proxy       ──►  Control Plane
+    └─ :9092       ──►  kafka_broker    ──►  Control Plane
 ```
 
-## Architecture
+Your service makes calls exactly as it does in production — same DNS names, same ports, same protocol. Regista intercepts them and responds with what you said to respond with.
 
-- **Envoy** — transparent TCP proxy with L7 protocol filters (HTTP, Redis, Kafka, MySQL, MongoDB)
-- **iptables** — redirects outbound traffic to Envoy without touching service code
-- **Control Plane** — single REST API to configure mock rules across all protocols
+---
 
-## Quick Start
+## What You Get
 
-```bash
-# Coming soon
-```
+- **Zero code changes** — interception is at the OS network layer via iptables, invisible to your service
+- **One API for all protocols** — configure mocks for HTTP, Redis, Kafka, and more from a single REST endpoint
+- **Protocol-aware** — Envoy speaks each protocol natively; your service gets a real Redis response, a real HTTP response, not a raw TCP blob
+- **Inspectable traffic** — see every outbound call your service made during a test run
+- **Resets between tests** — POST `/mocks/reset` and you're clean
+
+---
 
 ## Mock Rule Example
 
-```json
+```bash
+# Mock a Redis GET
 POST /mocks
 {
   "protocol": "redis",
-  "match": "GET user:*",
-  "response": "{\"id\": 1, \"name\": \"fake-user\"}"
+  "match": { "command": "GET", "key": "user:*" },
+  "response": "{\"id\": 1, \"name\": \"ada\"}"
 }
 
+# Mock an HTTP call
 POST /mocks
 {
   "protocol": "http",
   "match": { "method": "POST", "path": "/v1/charge" },
-  "response": { "status": 200, "body": "{\"id\": \"ch_fake123\"}" }
+  "response": { "status": 200, "body": { "id": "ch_fake123", "status": "succeeded" } }
 }
+
+# Inspect what was called
+GET /traffic
 ```
 
-## Supported Protocols (Roadmap)
+---
 
-| Protocol   | Status      | Backend              |
-|------------|-------------|----------------------|
-| HTTP/gRPC  | Planned     | WireMock / Microcks  |
-| Redis      | Planned     | miniredis            |
-| RabbitMQ   | Planned     | rabbitmq-mock        |
-| Kafka      | Planned     | Microcks AsyncAPI    |
-| MySQL      | Planned     | test container       |
-| Oracle     | Planned     | TestContainers       |
+## Architecture
+
+**Envoy** is the proxy — it handles the protocol parsing, matching, and response. It knows Redis RESP, Kafka wire format, HTTP — you don't have to.
+
+**iptables** redirects outbound traffic to Envoy before it leaves the container. Same pattern as Istio/Linkerd service meshes. No proxy env vars, no SDK configuration — it just works.
+
+**Control Plane** is the single API that accepts mock rules, pushes them to the right backend, and exposes traffic inspection.
+
+See [`docs/architecture.md`](docs/architecture.md) for the full breakdown.
+
+---
+
+## Supported Protocols
+
+| Protocol   | Envoy Filter               | Status   |
+|------------|----------------------------|----------|
+| HTTP/gRPC  | `http_connection_manager`  | Planned  |
+| Redis      | `redis_proxy`              | Planned  |
+| Kafka      | `kafka_broker`             | Planned  |
+| MySQL      | `mysql_proxy`              | Planned  |
+| RabbitMQ   | `tcp_proxy` (raw)          | Planned  |
+| Oracle     | `tcp_proxy` (raw)          | Planned  |
+
+---
 
 ## Inspiration
 
-The name comes from the Italian football term **regista** — a deep-lying playmaker (think Andrea Pirlo) who sits in front of the defence and orchestrates play, distributing the ball to wherever it needs to go.
+**Regista** is the Italian football term for a deep-lying playmaker — the Andrea Pirlo role. Sits in front of the defence, reads the whole field, distributes to wherever it needs to go.
 
-This proxy does the same: sits between your service and all external dependencies, directing each request to the right mock.
+This proxy does the same: sits between your service and all external dependencies, directing each call to the right mock.
+
+---
+
+## Prior Art
+
+- [Grab Loki](https://engineering.grab.com/loki-dynamic-mock-server-http-tcp-testing) — HTTP + TCP mock server, inspiration for the network-intercept approach
+- [Traffic Parrot](https://trafficparrot.com/) — commercial equivalent
+- [Microcks](https://microcks.io/) — API mocking, good for Kafka/AsyncAPI
+
+---
 
 ## License
 
