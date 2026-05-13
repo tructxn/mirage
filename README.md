@@ -108,11 +108,21 @@ This proxy does the same: sits between your service and all external dependencie
 
 ---
 
-## Prior Art
+## Prior Art & Alternatives
 
-- [Grab Loki](https://engineering.grab.com/loki-dynamic-mock-server-http-tcp-testing) — HTTP + TCP mock server, inspiration for the network-intercept approach
-- [Traffic Parrot](https://trafficparrot.com/) — commercial equivalent
-- [Microcks](https://microcks.io/) — API mocking, good for Kafka/AsyncAPI
+**Commercial**
+
+- [Traffic Parrot](https://trafficparrot.com/) — closest commercial equivalent. Supports HTTP, Kafka, IBM MQ, TIBCO. Proprietary, license-based, Java-heavy. Good product, but closed and expensive for what it does.
+- [Hoverfly](https://hoverfly.io/) — HTTP/HTTPS only, no multi-protocol. SaaS + open core model. Well-maintained but limited to HTTP simulation.
+- [WireMock Cloud](https://wiremock.io/) — HTTP mocking as a service. Great for REST/gRPC but doesn't touch Redis, Kafka, or databases.
+
+**Open Source**
+
+- [Grab Loki](https://engineering.grab.com/loki-dynamic-mock-server-http-tcp-testing) — internal tool at Grab, network-intercept approach, inspiration for this project. Not publicly released.
+- [Microcks](https://microcks.io/) — strong for Kafka/AsyncAPI and OpenAPI mocking. Complex to operate, not designed for sidecar interception.
+- [WireMock](https://wiremock.org/) — de facto standard for HTTP mocking. No network-level interception; requires SDK or proxy env var configuration.
+
+**Where Regista fits**: network-level interception across all protocols, single control plane, open source, designed to run as a sidecar with no service changes.
 
 ---
 
