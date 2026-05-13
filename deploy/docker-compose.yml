@@ -1,0 +1,44 @@
+version: "3.8"
+
+services:
+  mirage-envoy:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.envoy
+    cap_add:
+      - NET_ADMIN
+    ports:
+      - "9901:9901"   # Envoy admin UI
+
+  mirage-cp:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.control-plane
+    ports:
+      - "9000:9000"
+    environment:
+      WIREMOCK_URL: http://wiremock:8080
+      REDIS_ADDR: redis:6380
+    depends_on:
+      - wiremock
+      - redis
+
+  wiremock:
+    image: wiremock/wiremock:3.5.4
+    command: ["--port", "8080", "--record-mappings"]
+    ports:
+      - "8080:8080"
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --port 6380
+    ports:
+      - "6380:6380"
+
+  # Uncomment to attach your service to Mirage's network namespace.
+  # your-service:
+  #   image: your-service:latest
+  #   network_mode: service:mirage-envoy
+  #   depends_on:
+  #     - mirage-envoy
+  #     - mirage-cp

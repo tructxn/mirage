@@ -1,0 +1,9 @@
+FROM golang:1.22-alpine AS builder
+WORKDIR /app
+COPY control-plane/ .
+RUN go build -o mirage-cp .
+
+FROM alpine:3.19
+COPY --from=builder /app/mirage-cp /mirage-cp
+EXPOSE 9000
+ENTRYPOINT ["/mirage-cp"]

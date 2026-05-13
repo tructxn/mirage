@@ -1,0 +1,9 @@
+FROM envoyproxy/envoy:v1.30-latest
+USER root
+RUN apt-get update && apt-get install -y iptables && rm -rf /var/lib/apt/lists/*
+COPY envoy/iptables.sh /iptables.sh
+COPY envoy/envoy.yaml /etc/envoy/envoy.yaml
+RUN chmod +x /iptables.sh
+# Envoy runs as UID 1337 so the iptables exclusion rule works.
+RUN useradd -u 1337 envoy 2>/dev/null || true
+ENTRYPOINT ["/bin/sh", "-c", "/iptables.sh && su envoy -s /bin/sh -c 'envoy -c /etc/envoy/envoy.yaml'"]
