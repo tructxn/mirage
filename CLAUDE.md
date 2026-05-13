@@ -1,8 +1,8 @@
-# Regista — Claude Instructions
+# Mirage — Claude Instructions
 
 ## Project Overview
 
-**Regista** is a universal mock proxy for E2E testing. Like Andrea Pirlo's regista role — sits deep, orchestrates everything, distributes to wherever it needs to go.
+**Mirage** is a universal mock proxy for E2E testing. Run your service in Docker, mock everything outside it — HTTP, Redis, Kafka, MySQL, RabbitMQ, Oracle — with zero changes to the service under test.
 
 Architecture: `iptables redirect → Envoy (protocol-aware proxy) → Control Plane (mock rules API)`
 

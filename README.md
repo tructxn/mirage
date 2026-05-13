@@ -1,8 +1,8 @@
-# Regista
+# Mirage
 
-> Like Andrea Pirlo — sits deep, sees everything, distributes to wherever it needs to go.
+> The outside world looks real. It isn't there.
 
-Regista is a **network-level mock proxy for E2E testing**. Run your service in Docker against mocked external dependencies — no real Redis cluster, no real Kafka broker, no real payment gateway. Your service runs its real code. Everything outside it is intercepted and faked.
+Mirage is a **network-level mock proxy for E2E testing**. Run your service in Docker against mocked external dependencies — no real Redis cluster, no real Kafka broker, no real payment gateway. Your service runs its real code. Everything outside it is intercepted and faked.
 
 ---
 
@@ -26,7 +26,7 @@ Redirect all outbound TCP from your service to a local proxy. The proxy understa
 ```
 docker-compose up
   ├─ your-service          ← real code, real logic, no changes
-  └─ regista
+  └─ mirage
        ├─ :80 / :443  ──►  HTTP/gRPC  ──►  mocked
        ├─ :6379       ──►  Redis       ──►  mocked
        ├─ :9092       ──►  Kafka       ──►  mocked
@@ -34,7 +34,7 @@ docker-compose up
        └─ :5672       ──►  RabbitMQ   ──►  mocked
 ```
 
-No Redis container. No Kafka broker. No external sandbox accounts. Just your service and Regista.
+No Redis container. No Kafka broker. No external sandbox accounts. Just your service and Mirage.
 
 ---
 
@@ -44,7 +44,7 @@ No Redis container. No Kafka broker. No external sandbox accounts. Just your ser
 
 **Envoy** receives the traffic and parses it natively — it speaks Redis RESP, Kafka wire protocol, HTTP/2, MySQL protocol. Your service gets a real protocol response back, not a raw TCP blob.
 
-**Control Plane** is the single API you use from your tests to configure what Regista returns.
+**Control Plane** is the single API you use from your tests to configure what Mirage returns.
 
 ---
 
@@ -115,15 +115,15 @@ See [`docs/architecture.md`](docs/architecture.md) for the full breakdown.
 - [Microcks](https://microcks.io/) — strong for Kafka/AsyncAPI and OpenAPI mocking. Complex to operate, not designed for sidecar interception.
 - [WireMock](https://wiremock.org/) — de facto standard for HTTP mocking. No network-level interception; requires SDK or proxy env var configuration.
 
-**Where Regista fits**: network-level interception across all protocols, single control plane, session-scoped isolation, open source, designed to run as a Docker sidecar with no service changes.
+**Where Mirage fits**: network-level interception across all protocols, single control plane, session-scoped isolation, open source, designed to run as a Docker sidecar with no service changes.
 
 ---
 
-## Inspiration
+## Name
 
-**Regista** is the Italian football term for a deep-lying playmaker — the Andrea Pirlo role. Sits in front of the defence, reads the whole field, distributes to wherever it needs to go.
+A mirage looks exactly like the real thing. You reach for it, and it isn't there.
 
-This proxy does the same: sits between your service and all external dependencies, directing each call to the right mock.
+That's what your service sees when it calls Redis, Kafka, or an external API through this proxy — a perfect replica that returns whatever you told it to.
 
 ---
 
