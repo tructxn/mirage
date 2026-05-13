@@ -84,7 +84,10 @@ func (a *WireMockAdapter) DeleteRule(sessionID string, rule session.Rule) error 
 	if rule.BackendID == "" {
 		return nil
 	}
-	req, _ := http.NewRequest(http.MethodDelete, a.baseURL+"/__admin/mappings/"+rule.BackendID, nil)
+	req, err := http.NewRequest(http.MethodDelete, a.baseURL+"/__admin/mappings/"+rule.BackendID, nil)
+	if err != nil {
+		return fmt.Errorf("wiremock delete request: %w", err)
+	}
 	res, err := a.client.Do(req)
 	if err != nil {
 		return err
@@ -152,7 +155,7 @@ func (a *WireMockAdapter) fetchMatchedRequests(sessionID string) ([]session.Traf
 	return records, nil
 }
 
-func (a *WireMockAdapter) fetchNearMisses() ([]session.TrafficRecord, error) {
+func (a *WireMockAdapter) fetchNearMisses(sessionID string) ([]session.TrafficRecord, error) {
 	res, err := a.client.Get(a.baseURL + "/__admin/requests/unmatched")
 	if err != nil {
 		return nil, err
@@ -203,7 +206,7 @@ func (a *WireMockAdapter) fetchNearMisses() ([]session.TrafficRecord, error) {
 			}
 			var ruleID string
 			if a.store != nil {
-				if rule, ok := a.store.RuleByBackendID("", nm.Mapping.ID); ok {
+				if rule, ok := a.store.RuleByBackendID(sessionID, nm.Mapping.ID); ok {
 					ruleID = rule.ID
 				}
 			}
@@ -222,7 +225,7 @@ func (a *WireMockAdapter) Traffic(sessionID string) ([]session.TrafficRecord, er
 	if err != nil {
 		return nil, err
 	}
-	unmatched, _ := a.fetchNearMisses()
+	unmatched, _ := a.fetchNearMisses(sessionID)
 	return append(matched, unmatched...), nil
 }
 
